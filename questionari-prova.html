@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qüestionari ràpid</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --paper:#f6f3ec;
+    --ink:#2b2620;
+    --ink-soft:#5a5348;
+    --rule:#cfc6b3;
+    --accent:#7a4b3a;
+    --accent-soft:#e7ddcf;
+    --ok:#3f6b4f;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+    line-height:1.5;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding:24px;
+  }
+  .card{
+    width:100%;
+    max-width:520px;
+    background:#fffdf9;
+    border:1px solid var(--rule);
+    border-radius:10px;
+    padding:36px 32px 28px;
+    position:relative;
+  }
+  .progress{
+    display:flex;
+    gap:5px;
+    margin-bottom:28px;
+  }
+  .progress .dot{
+    flex:1;
+    height:3px;
+    background:var(--rule);
+    border-radius:2px;
+  }
+  .progress .dot.done{background:var(--accent);}
+  .progress .dot.current{background:var(--ink);}
+  .step-label{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size:.78rem;
+    color:var(--ink-soft);
+    margin-bottom:6px;
+    letter-spacing:.3px;
+  }
+  .page{display:none;}
+  .page.active{display:block;}
+  .page h2{
+    font-size:1.25rem;
+    margin:0 0 8px;
+    line-height:1.35;
+  }
+  .page .hint{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size:.85rem;
+    color:var(--ink-soft);
+    margin:0 0 18px;
+  }
+  .field{margin-bottom:16px;}
+  .field label{
+    display:block;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size:.82rem;
+    color:var(--ink-soft);
+    margin-bottom:6px;
+  }
+  textarea, input[type=text], input[type=date]{
+    width:100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size:1rem;
+    padding:10px 12px;
+    border:1px solid var(--rule);
+    border-radius:5px;
+    background:#fffdf9;
+    color:var(--ink);
+    resize:vertical;
+  }
+  textarea{min-height:90px;}
+  textarea:focus, input:focus{
+    outline:none;
+    border-color:var(--accent);
+  }
+  .radios{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .radios label{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size:.98rem;
+    color:var(--ink);
+    border:1px solid var(--rule);
+    border-radius:6px;
+    padding:10px 12px;
+    cursor:pointer;
+  }
+  .radios label:has(input:checked){
+    border-color:var(--accent);
+    background:var(--accent-soft);
+  }
+  .radios input{width:auto;}
+  .nav{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:26px;
+  }
+  button{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size:.92rem;
+    padding:10px 20px;
+    border-radius:5px;
+    border:1px solid var(--ink);
+    background:var(--ink);
+    color:var(--paper);
+    cursor:pointer;
+  }
+  button.secondary{
+    background:transparent;
+    color:var(--ink-soft);
+    border-color:transparent;
+  }
+  button:disabled{opacity:.45; cursor:default;}
+  #status{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size:.85rem;
+    color:var(--ok);
+    display:block;
+    margin-top:14px;
+    text-align:center;
+  }
+  .final-actions{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .final-actions button{width:100%;}
+  .warning{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size:.78rem;
+    color:var(--ink-soft);
+    margin-top:16px;
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="progress" id="progress"></div>
+
+  <form id="qform">
+
+    <!-- 0: intro / nom -->
+    <div class="page" data-flow="both">
+      <div class="step-label">Per començar</div>
+      <h2>Qui respon i quan</h2>
+      <p class="hint">Uns cinc minuts. Si una pregunta no la pots respondre, deixa-la en blanc.</p>
+      <div class="field">
+        <label>Nom (el teu)</label>
+        <input type="text" data-q="Nom (el teu)">
+      </div>
+      <div class="field">
+        <label>Data de la prova</label>
+        <input type="date" data-q="Data de la prova">
+      </div>
+    </div>
+
+    <!-- 1: branch -->
+    <div class="page" data-flow="both">
+      <div class="step-label">Abans de res</div>
+      <h2>S'ha instal·lat i arrencat sense problemes?</h2>
+      <div class="field radios">
+        <label><input type="radio" name="arrenca" value="sí" data-q="S'ha instal·lat i arrencat sense problemes?">Sí, sense problemes</label>
+        <label><input type="radio" name="arrenca" value="no" data-q="S'ha instal·lat i arrencat sense problemes?">No, m'he quedat encallat</label>
+      </div>
+    </div>
+
+    <!-- FAIL FLOW -->
+    <div class="page" data-flow="fail">
+      <div class="step-label">S'ha aturat</div>
+      <h2>On s'ha aturat, exactament?</h2>
+      <p class="hint">La pantalla o el pas on t'has quedat encallat.</p>
+      <div class="field">
+        <textarea data-q="On s'ha aturat"></textarea>
+      </div>
+    </div>
+
+    <div class="page" data-flow="fail">
+      <div class="step-label">L'error</div>
+      <h2>Copia'm el missatge d'error sencer</h2>
+      <div class="field">
+        <textarea data-q="Missatge d'error, copiat sencer"></textarea>
+      </div>
+    </div>
+
+    <div class="page" data-flow="fail">
+      <div class="step-label">Detalls tècnics</div>
+      <h2>Versió de Python i ordinador</h2>
+      <div class="field">
+        <label>Versió de Python (python --version)</label>
+        <input type="text" data-q="Versió de Python">
+      </div>
+      <div class="field">
+        <label>És un ordinador del centre o teu?</label>
+        <input type="text" data-q="Ordinador del centre o teu?">
+      </div>
+    </div>
+
+    <!-- MAIN FLOW -->
+    <div class="page" data-flow="main">
+      <div class="step-label">La sessió</div>
+      <h2>Quants documents has passat i de quin tipus?</h2>
+      <div class="field">
+        <label>Quants documents</label>
+        <input type="text" data-q="Quants documents has passat">
+      </div>
+      <div class="field">
+        <label>De quin tipus (treball d'alumne, informe, acta…)</label>
+        <input type="text" data-q="De quin tipus">
+      </div>
+      <div class="field radios">
+        <label><input type="radio" name="llista" value="sí" data-q="Hi has posat llista de classe?">Hi he posat llista de classe</label>
+        <label><input type="radio" name="llista" value="no" data-q="Hi has posat llista de classe?">No hi he posat llista de classe</label>
+      </div>
+    </div>
+
+    <div class="page" data-flow="main">
+      <div class="step-label">Abans de mirar el resultat</div>
+      <h2>Què creus que se li escaparà?</h2>
+      <p class="hint">Si encara no coneixes prou l'eina per respondre, escriu-ho igualment — també és una resposta.</p>
+      <div class="field">
+        <textarea data-q="Què creus que se li escaparà"></textarea>
+      </div>
+    </div>
+
+    <div class="page" data-flow="main">
+      <div class="step-label">Autonomia</div>
+      <h2>Si demà et digués «passa'm tres documents més», ho sabries fer sense tornar a llegir res?</h2>
+      <div class="field radios">
+        <label><input type="radio" name="a9" value="sí" data-q="Ho sabries fer demà sense tornar a llegir res?">Sí</label>
+        <label><input type="radio" name="a9" value="no" data-q="Ho sabries fer demà sense tornar a llegir res?">No</label>
+        <label><input type="radio" name="a9" value="amb dubtes" data-q="Ho sabries fer demà sense tornar a llegir res?">Amb dubtes</label>
+      </div>
+      <div class="field">
+        <label>Si tens dubtes, què hauries de rellegir?</label>
+        <input type="text" data-q="Què hauries de rellegir">
+      </div>
+    </div>
+
+    <div class="page" data-flow="main">
+      <div class="step-label">Sorpreses</div>
+      <h2>Alguna cosa que hagis clicat esperant una cosa i n'ha passat una altra?</h2>
+      <div class="field">
+        <textarea data-q="Clic amb resultat inesperat"></textarea>
+      </div>
+    </div>
+
+    <div class="page" data-flow="main">
+      <div class="step-label">La pregunta clau</div>
+      <h2>Ha canviat res que NO havia de canviar?</h2>
+      <p class="hint">Una paraula corrent convertida en nom fals, un títol, un topònim, una citació, un terme del temari — l'errada que espatlla el document sense avisar.</p>
+      <div class="field">
+        <textarea data-q="Ha canviat res que no calia canviar"></textarea>
+      </div>
+    </div>
+
+    <div class="page" data-flow="main">
+      <div class="step-label">Privacitat</div>
+      <h2>Ha quedat cap nom o dada identificativa sense amagar?</h2>
+      <p class="hint">Nom, DNI, correu, telèfon, data de naixement… descriu el cas, no el copiïs amb la dada real.</p>
+      <div class="field">
+        <textarea data-q="Noms o dades identificatives sense amagar"></textarea>
+      </div>
+    </div>
+
+    <div class="page" data-flow="main">
+      <div class="step-label">Casos difícils</div>
+      <h2>Quasi-identificadors sense nom, aproximadament per document</h2>
+      <p class="hint">Per exemple «l'alumna que va estar ingressada» o «l'únic que ve amb transport escolar» — l'eina no els detectarà mai; vull saber com de freqüents són.</p>
+      <div class="field">
+        <input type="text" data-q="Quasi-identificadors sense nom, aprox. per document">
+      </div>
+    </div>
+
+    <div class="page" data-flow="main">
+      <div class="step-label">Per acabar</div>
+      <h2>Què t'ha sorprès?</h2>
+      <p class="hint">Una frase. Si no t'ha sorprès res, escriu-ho igualment.</p>
+      <div class="field">
+        <textarea data-q="Què t'ha sorprès"></textarea>
+      </div>
+    </div>
+
+    <div class="page" data-flow="main">
+      <div class="step-label">La pregunta que decideix</div>
+      <h2>Ho tornaries a fer servir la setmana que ve, sense que ningú t'ho recordés?</h2>
+      <div class="field radios">
+        <label><input type="radio" name="c2" value="sí" data-q="Ho tornaries a fer servir la setmana que ve?">Sí</label>
+        <label><input type="radio" name="c2" value="no" data-q="Ho tornaries a fer servir la setmana que ve?">No</label>
+      </div>
+      <div class="field">
+        <label>Per què</label>
+        <textarea data-q="Per què"></textarea>
+      </div>
+    </div>
+
+    <!-- FINAL -->
+    <div class="page" data-flow="both">
+      <div class="step-label">Llest</div>
+      <h2>Gràcies</h2>
+      <p class="hint">Prem enviar per desar les respostes.</p>
+      <div class="final-actions">
+        <button type="button" id="submitBtn">Envia les respostes</button>
+        <button type="button" class="secondary" id="downloadBtn">Guarda'n també una còpia local (.xlsx)</button>
+      </div>
+      <span id="status"></span>
+      <p class="warning">No hi has escrit cap nom real d'alumne ni cap dada que identifiqui ningú, oi?</p>
+    </div>
+
+  </form>
+
+  <div class="nav" id="navBar">
+    <button type="button" class="secondary" id="backBtn">Enrere</button>
+    <button type="button" id="nextBtn">Següent</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ⚠️ CONFIGURA AQUÍ la URL del teu Google Apps Script desplegat com a aplicació web (acaba en /exec).
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyV1q_V5CoGW7IBTET13PBeQbpx6rQzKFTbAWkC_YGx7-Z5WbmsJenLv80YNITIGZdv/exec';
+
+  const form = document.getElementById('qform');
+  const allPages = Array.from(document.querySelectorAll('.page'));
+  const DRAFT_KEY = 'questionari_curt_draft_v1';
+  let branch = null; // 'main' | 'fail'
+  let order = [];     // indices into allPages for current flow
+  let pos = 0;
+
+  function computeOrder(){
+    order = [];
+    allPages.forEach((p, i) => {
+      const flow = p.dataset.flow;
+      if (flow === 'both') { order.push(i); return; }
+      if (branch === 'main' && flow === 'main') order.push(i);
+      if (branch === 'fail' && flow === 'fail') order.push(i);
+    });
+    // if branch not chosen yet, only show pages up to and including the branch question
+    if (!branch){
+      const branchIdx = allPages.findIndex(p => p.querySelector('[name="arrenca"]'));
+      order = order.filter(i => i <= branchIdx);
+    }
+  }
+
+  function renderProgress(){
+    const bar = document.getElementById('progress');
+    bar.innerHTML = '';
+    order.forEach((_, i) => {
+      const d = document.createElement('div');
+      d.className = 'dot' + (i < pos ? ' done' : (i === pos ? ' current' : ''));
+      bar.appendChild(d);
+    });
+  }
+
+  function showPage(){
+    allPages.forEach(p => p.classList.remove('active'));
+    const idx = order[pos];
+    allPages[idx].classList.add('active');
+    document.getElementById('backBtn').style.visibility = pos === 0 ? 'hidden' : 'visible';
+    const isFinal = allPages[idx].querySelector('#submitBtn');
+    document.getElementById('nextBtn').style.display = isFinal ? 'none' : 'inline-block';
+    renderProgress();
+    saveDraft();
+  }
+
+  function currentPageValid(){
+    const idx = order[pos];
+    const page = allPages[idx];
+    const radios = page.querySelectorAll('input[type=radio]');
+    if (radios.length){
+      const names = new Set(Array.from(radios).map(r => r.name));
+      for (const n of names){
+        if (!page.querySelector('input[name="'+n+'"]:checked')) return false;
+      }
+    }
+    return true;
+  }
+
+  document.getElementById('nextBtn').addEventListener('click', function(){
+    if (!currentPageValid()){
+      this.textContent = 'Tria una opció';
+      setTimeout(() => { this.textContent = 'Següent'; }, 1200);
+      return;
+    }
+    const idx = order[pos];
+    const branchRadio = allPages[idx].querySelector('[name="arrenca"]:checked');
+    if (branchRadio && !branch){
+      branch = branchRadio.value === 'sí' ? 'main' : 'fail';
+      computeOrder();
+      pos++;
+      showPage();
+      return;
+    }
+    if (pos < order.length - 1){ pos++; showPage(); }
+  });
+
+  document.getElementById('backBtn').addEventListener('click', function(){
+    if (pos > 0){ pos--; showPage(); }
+  });
+
+  function fieldEls(){ return Array.from(form.querySelectorAll('[data-q]')); }
+
+  function collectAnswersObject(){
+    const seen = new Set();
+    const data = {};
+    fieldEls().forEach(el => {
+      if (el.type === 'radio'){
+        if (!el.checked) return;
+        if (seen.has(el.name)) return;
+        seen.add(el.name);
+        data[el.dataset.q] = el.value;
+      } else {
+        data[el.dataset.q] = el.value.trim();
+      }
+    });
+    return data;
+  }
+
+  function collectAnswersRows(){
+    const seen = new Set();
+    const rows = [];
+    fieldEls().forEach(el => {
+      if (el.type === 'radio'){
+        if (!el.checked) return;
+        if (seen.has(el.name)) return;
+        seen.add(el.name);
+        rows.push([el.dataset.q, el.value]);
+      } else {
+        rows.push([el.dataset.q, el.value.trim()]);
+      }
+    });
+    return rows;
+  }
+
+  function saveDraft(){
+    const data = {};
+    fieldEls().forEach(el => {
+      const key = el.name || el.dataset.q;
+      if (el.type === 'radio'){ if (el.checked) data[el.name] = el.value; }
+      else data[key] = el.value;
+    });
+    data.__branch = branch;
+    data.__pos = pos;
+    try{ localStorage.setItem(DRAFT_KEY, JSON.stringify(data)); }catch(e){}
+  }
+
+  function loadDraft(){
+    let data;
+    try{ data = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}'); }catch(e){ data = {}; }
+    fieldEls().forEach(el => {
+      const key = el.name || el.dataset.q;
+      if (!(key in data)) return;
+      if (el.type === 'radio'){ if (el.value === data[key]) el.checked = true; }
+      else el.value = data[key];
+    });
+    if (data.__branch) branch = data.__branch;
+  }
+
+  loadDraft();
+  computeOrder();
+  if (branch && typeof loadDraft === 'function'){
+    // restore position within the now-correct flow, clamped to available length
+    let savedPos = 0;
+    try{ savedPos = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').__pos || 0; }catch(e){}
+    pos = Math.min(savedPos, order.length - 1);
+  }
+  showPage();
+
+  document.getElementById('submitBtn').addEventListener('click', function(){
+    const statusEl = document.getElementById('status');
+    if (!SCRIPT_URL || SCRIPT_URL.indexOf('ENGANXA_AQUI') !== -1){
+      statusEl.style.color = '#a33';
+      statusEl.textContent = 'Falta configurar la URL del Google Apps Script al codi.';
+      return;
+    }
+    const data = collectAnswersObject();
+    const btn = this;
+    btn.disabled = true;
+    statusEl.style.color = '';
+    statusEl.textContent = 'Enviant…';
+    fetch(SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify(data)
+    }).then(function(){
+      statusEl.textContent = 'Respostes enviades. Gràcies!';
+      try{ localStorage.removeItem(DRAFT_KEY); }catch(e){}
+      btn.disabled = false;
+    }).catch(function(){
+      statusEl.style.color = '#a33';
+      statusEl.textContent = 'No s\'ha pogut enviar. Torna-ho a provar.';
+      btn.disabled = false;
+    });
+  });
+
+  document.getElementById('downloadBtn').addEventListener('click', function(){
+    const rows = collectAnswersRows();
+    const aoa = [['Pregunta','Resposta']].concat(rows);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:55},{wch:60}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Respostes');
+    const stamp = new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb, 'questionari-' + stamp + '.xlsx');
+  });
+})();
+</script>
+</body>
+</html>
